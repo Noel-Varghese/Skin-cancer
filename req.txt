@@ -1,0 +1,7 @@
+torch
+torchvision
+pandas
+Pillow
+
+
+pip install -r req.txt

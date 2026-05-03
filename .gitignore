@@ -1,0 +1,7 @@
+# Ignore the massive dataset folder
+data_set/
+archive.zip
+
+# Ignore Python cache
+__pycache__/
+*.pyc
