@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import shutil
 import os
-from backend.predict import analyze_file  # We are importing your existing logic!
+from predict import analyze_file  # We are importing your existing logic!
 
 app = FastAPI()
 

@@ -5,36 +5,38 @@ from PIL import Image
 import cv2
 import sys
 
-# 1. Setup device and load the saved model
+# 1. Initialize hardware environment and load model architecture
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Rebuild the ResNet18 structure
+# Rebuild the base ResNet18 structure
 model = models.resnet18(weights=None)
 model.fc = nn.Linear(model.fc.in_features, 7)
 
-# Load your trained weights
+# Load the compiled model weights
 try:
     model.load_state_dict(torch.load('skin_cancer_model.pth', map_location=device, weights_only=True))
 except FileNotFoundError:
-    print("Error: 'skin_cancer_model.pth' not found. Run train.py first!")
+    print("Error: 'skin_cancer_model.pth' not found. Please execute the training script prior to inference.")
     sys.exit()
 
 model = model.to(device)
-model.eval() # Set to evaluation mode (turns off training mechanics)
+model.eval() # Engage evaluation mode to disable gradient calculation
 
-# Standard image transformations
+# Define the standard spatial transformations for inference
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]) 
 ])
 
-# HAM10000 Class Labels
-classes = ['Melanocytic nevi', 'Melanoma (DANGER)', 'Benign keratosis-like lesions', 
-           'Basal cell carcinoma (DANGER)', 'Actinic keratoses', 'Vascular lesions', 'Dermatofibroma']
+# Define the diagnostic classes corresponding to the dataset
+classes = [
+    'Melanocytic nevi', 'Melanoma (DANGER)', 'Benign keratosis-like lesions', 
+    'Basal cell carcinoma (DANGER)', 'Actinic keratoses', 'Vascular lesions', 'Dermatofibroma'
+]
 
 def predict_single_frame(image_pil):
-    """Passes a single image through the AI."""
+    """Executes a forward pass of a single image frame through the network."""
     input_tensor = transform(image_pil).unsqueeze(0).to(device)
     with torch.no_grad():
         outputs = model(input_tensor)
@@ -42,22 +44,24 @@ def predict_single_frame(image_pil):
     return probabilities
 
 def analyze_file(file_path):
-    print(f"\nAnalyzing: {file_path}")
+    """Processes multimodal inputs (images, video, GIFs) and returns diagnostic metrics."""
+    print(f"\nProcessing File: {file_path}")
     
-    # Check if it's a video or GIF
+    # Evaluate sequential data formats
     if file_path.lower().endswith(('.mp4', '.avi', '.mov', '.gif')):
-        print("Video/GIF detected. Extracting frames...")
+        print("Sequential media detected. Extracting keyframes...")
         cap = cv2.VideoCapture(file_path)
         frame_count = 0
         cumulative_probs = torch.zeros(7).to(device)
         
         while cap.isOpened():
             ret, frame = cap.read()
-            if not ret: break
+            if not ret: 
+                break
             
-            # Analyze 1 frame every second (assuming 30fps) to save time
+            # Sample frames at a 1-second interval (assuming ~30 FPS)
             if frame_count % 30 == 0:
-                # Convert OpenCV frame (BGR) to PIL Image (RGB)
+                # Convert BGR (OpenCV standard) to RGB (PIL standard)
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 pil_img = Image.fromarray(frame_rgb)
                 
@@ -68,29 +72,38 @@ def analyze_file(file_path):
             
         cap.release()
         
-        # Average the predictions across all extracted frames
+        # Calculate the mean probability across all evaluated frames
         frames_analyzed = (frame_count // 30) + 1
         final_probs = cumulative_probs / frames_analyzed
-        print(f"Analyzed {frames_analyzed} keyframes.")
+        print(f"Total keyframes evaluated: {frames_analyzed}")
 
-    # Otherwise, treat it as a standard static image
+    # Evaluate static image formats
     else:
         print("Static image detected.")
         image = Image.open(file_path).convert('RGB')
         final_probs = predict_single_frame(image)
 
-    # Output the final result
+    # Extract the highest probability class
     top_prob, top_class = torch.max(final_probs, 0)
+    
+    diagnosis_text = classes[top_class.item()]
+    confidence_score = top_prob.item() * 100
+
     print("====================================")
-    print(f"DIAGNOSIS: {classes[top_class.item()]}")
-    print(f"CONFIDENCE: {top_prob.item() * 100:.2f}%")
+    print(f"DIAGNOSIS: {diagnosis_text}")
+    print(f"CONFIDENCE: {confidence_score:.2f}%")
     print("====================================\n")
 
+    # Transmit the payload to the API layer
+    return {"diagnosis": diagnosis_text, "confidence": confidence_score}
+
 # ==========================================
-# TEST SCRIPT 
+# Independent Execution / Verification Block
 # ==========================================
 if __name__ == "__main__":
-    # Test it by pointing it to one of your dataset images
-    # Replace this with any .jpg, .gif, or .mp4 file path on your computer!
+    # Specify a local test file path for manual verification
     test_file = r'data_set\archive\HAM10000_images_part_1\ISIC_0024306.jpg' 
-    analyze_file(test_file)
+    try:
+        analyze_file(test_file)
+    except Exception as e:
+        print(f"Verification failed: {e}")
