@@ -16,7 +16,7 @@ model.fc = nn.Linear(model.fc.in_features, 7)
 try:
     model.load_state_dict(torch.load('skin_cancer_model.pth', map_location=device, weights_only=True))
 except FileNotFoundError:
-    print("Error: 'skin_cancer_model.pth' not found. Please execute the training script prior to inference.")
+    print("Error: 'skin_cancer_model.pth' not found. ")
     sys.exit()
 
 model = model.to(device)
