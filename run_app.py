@@ -1,59 +1,122 @@
 import subprocess
-import os
 import sys
 import time
+from pathlib import Path
+
 
 def run_application():
-    # Define paths based on your folder structure
-    root_path = os.getcwd()
-    backend_path = os.path.join(root_path, "backend")
-    frontend_path = os.path.join(root_path, "frontend")
+    # Base paths based on this script's location
+    root_path = Path(__file__).resolve().parent
+    backend_path = root_path / "backend"
+    frontend_path = root_path / "frontend"
+
+    is_windows = sys.platform.startswith("win")
 
     print("--- Initializing Full-Stack AI System ---")
 
-    # 1. Start the Backend API
+    # ============================================================
+    # START BACKEND
+    # ============================================================
+
     print("Starting Backend API (FastAPI)...")
+
     try:
         backend_process = subprocess.Popen(
-            [sys.executable, "api.py"],
-            cwd=backend_path,
-            shell=True
+            [
+                sys.executable,
+                "-m",
+                "uvicorn",
+                "api:app",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8000",
+                "--reload"
+            ],
+            cwd=backend_path
         )
+
     except Exception as e:
         print(f"Failed to start backend: {e}")
         return
 
-    # Brief pause to let the API initialize
+    # Give FastAPI time to initialize
     time.sleep(2)
 
-    # 2. Start the Frontend Development Server
+    # ============================================================
+    # START FRONTEND
+    # ============================================================
+
     print("Starting Frontend (Vite/React)...")
+
     try:
-        # 'shell=True' is required for npm commands on Windows
+        frontend_command = [
+            "npm",
+            "run",
+            "dev"
+        ]
+
         frontend_process = subprocess.Popen(
-            ["npm", "run", "dev"],
+            frontend_command,
             cwd=frontend_path,
-            shell=True
+            shell=is_windows
         )
+
     except Exception as e:
         print(f"Failed to start frontend: {e}")
+
         backend_process.terminate()
+
         return
 
+    # ============================================================
+    # SYSTEM READY
+    # ============================================================
+
     print("\n--- System Operational ---")
-    print("Backend: http://127.0.0.1:8000")
-    print("Frontend: Check terminal for Vite URL (usually http://localhost:5173)")
-    print("Press CTRL+C in this window to stop both servers.")
+    print("Backend:  http://127.0.0.1:8000")
+    print("API Docs: http://127.0.0.1:8000/docs")
+    print("Frontend: Check terminal for Vite URL")
+    print("\nPress CTRL+C to stop both servers.")
+
+    # ============================================================
+    # KEEP SERVERS RUNNING
+    # ============================================================
 
     try:
-        # Keep the main script running while the processes are active
-        backend_process.wait()
-        frontend_process.wait()
+
+        while True:
+
+            if backend_process.poll() is not None:
+
+                print("\nBackend stopped.")
+
+                frontend_process.terminate()
+
+                break
+
+            if frontend_process.poll() is not None:
+
+                print("\nFrontend stopped.")
+
+                backend_process.terminate()
+
+                break
+
+            time.sleep(1)
+
     except KeyboardInterrupt:
+
         print("\nShutting down servers...")
+
         backend_process.terminate()
         frontend_process.terminate()
+
+        backend_process.wait()
+        frontend_process.wait()
+
         print("Done.")
+
 
 if __name__ == "__main__":
     run_application()

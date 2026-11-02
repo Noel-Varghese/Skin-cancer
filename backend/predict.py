@@ -1,109 +1,197 @@
-import torch
-import torch.nn as nn
-from torchvision import models, transforms
-from PIL import Image
-import cv2
 import sys
 
-# 1. Initialize hardware environment and load model architecture
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+import torch
 
-# Rebuild the base ResNet18 structure
-model = models.resnet18(weights=None)
-model.fc = nn.Linear(model.fc.in_features, 7)
+from PIL import Image
 
-# Load the compiled model weights
-try:
-    model.load_state_dict(torch.load('skin_cancer_model.pth', map_location=device, weights_only=True))
-except FileNotFoundError:
-    print("Error: 'skin_cancer_model.pth' not found. ")
-    sys.exit()
+from torchvision import transforms
 
-model = model.to(device)
-model.eval() # Engage evaluation mode to disable gradient calculation
+from model import SmartphoneSkinModel
 
-# Define the standard spatial transformations for inference
-transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]) 
-])
 
-# Define the diagnostic classes corresponding to the dataset
-classes = [
-    'Melanocytic nevi', 'Melanoma (DANGER)', 'Benign keratosis-like lesions', 
-    'Basal cell carcinoma (DANGER)', 'Actinic keratoses', 'Vascular lesions', 'Dermatofibroma'
+# ============================================================
+# CONFIGURATION
+# ============================================================
+
+MODEL_PATH = "models/smartphone_skin_model.pth"
+
+DEVICE = torch.device(
+    "cuda" if torch.cuda.is_available() else "cpu"
+)
+
+
+# ============================================================
+# CLASS INFORMATION
+# ============================================================
+
+CLASS_NAMES = [
+    "Actinic Keratosis",
+    "Basal Cell Carcinoma",
+    "Melanoma",
+    "Nevus",
+    "Squamous Cell Carcinoma",
+    "Seborrheic Keratosis"
 ]
 
-def predict_single_frame(image_pil):
-    """Executes a forward pass of a single image frame through the network."""
-    input_tensor = transform(image_pil).unsqueeze(0).to(device)
+
+CLASS_DESCRIPTIONS = [
+    "Sun-damaged skin lesion",
+    "Common type of skin cancer",
+    "Serious type of skin cancer",
+    "Common mole / usually non-cancerous",
+    "Type of skin cancer",
+    "Common non-cancerous skin growth"
+]
+
+
+# ============================================================
+# TRANSFORM
+# ============================================================
+
+transform = transforms.Compose([
+
+    transforms.Resize(
+        (224, 224)
+    ),
+
+    transforms.ToTensor(),
+
+    transforms.Normalize(
+        mean=[0.485, 0.456, 0.406],
+        std=[0.229, 0.224, 0.225]
+    )
+])
+
+
+# ============================================================
+# LOAD MODEL
+# ============================================================
+
+print("Loading model...")
+
+model = SmartphoneSkinModel(
+    num_classes=6
+)
+
+model.load_state_dict(
+    torch.load(
+        MODEL_PATH,
+        map_location=DEVICE
+    )
+)
+
+model = model.to(DEVICE)
+
+model.eval()
+
+print("Model loaded.")
+
+
+# ============================================================
+# PREDICTION FUNCTION
+# ============================================================
+
+def predict_image(image_path):
+
+    image = Image.open(
+        image_path
+    ).convert("RGB")
+
+    image = transform(image)
+
+    image = image.unsqueeze(0)
+
+    image = image.to(DEVICE)
+
     with torch.no_grad():
-        outputs = model(input_tensor)
-        probabilities = torch.nn.functional.softmax(outputs[0], dim=0)
-    return probabilities
 
-def analyze_file(file_path):
-    """Processes multimodal inputs (images, video, GIFs) and returns diagnostic metrics."""
-    print(f"\nProcessing File: {file_path}")
-    
-    # Evaluate sequential data formats
-    if file_path.lower().endswith(('.mp4', '.avi', '.mov', '.gif')):
-        print("Sequential media detected. Extracting keyframes...")
-        cap = cv2.VideoCapture(file_path)
-        frame_count = 0
-        cumulative_probs = torch.zeros(7).to(device)
-        
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret: 
-                break
-            
-            # Sample frames at a 1-second interval (assuming ~30 FPS)
-            if frame_count % 30 == 0:
-                # Convert BGR (OpenCV standard) to RGB (PIL standard)
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                pil_img = Image.fromarray(frame_rgb)
-                
-                probs = predict_single_frame(pil_img)
-                cumulative_probs += probs
-                
-            frame_count += 1
-            
-        cap.release()
-        
-        # Calculate the mean probability across all evaluated frames
-        frames_analyzed = (frame_count // 30) + 1
-        final_probs = cumulative_probs / frames_analyzed
-        print(f"Total keyframes evaluated: {frames_analyzed}")
+        outputs = model(image)
 
-    # Evaluate static image formats
-    else:
-        print("Static image detected.")
-        image = Image.open(file_path).convert('RGB')
-        final_probs = predict_single_frame(image)
+        probabilities = torch.softmax(
+            outputs,
+            dim=1
+        )
 
-    # Extract the highest probability class
-    top_prob, top_class = torch.max(final_probs, 0)
-    
-    diagnosis_text = classes[top_class.item()]
-    confidence_score = top_prob.item() * 100
+        confidence, prediction = torch.max(
+            probabilities,
+            dim=1
+        )
 
-    print("====================================")
-    print(f"DIAGNOSIS: {diagnosis_text}")
-    print(f"CONFIDENCE: {confidence_score:.2f}%")
-    print("====================================\n")
+    index = prediction.item()
 
-    # Transmit the payload to the API layer
-    return {"diagnosis": diagnosis_text, "confidence": confidence_score}
+    predicted_class = CLASS_NAMES[index]
 
-# ==========================================
-# Independent Execution / Verification Block
-# ==========================================
+    description = CLASS_DESCRIPTIONS[index]
+
+    confidence = confidence.item()
+
+    return {
+        "diagnosis": predicted_class,
+        "description": description,
+        "confidence": confidence
+    }
+
+
+# ============================================================
+# COMMAND LINE TEST
+# ============================================================
+
 if __name__ == "__main__":
-    # Specify a local test file path for manual verification
-    test_file = r'data_set\archive\HAM10000_images_part_1\ISIC_0024306.jpg' 
+
+    if len(sys.argv) < 2:
+
+        print()
+        print(
+            "Usage:"
+        )
+
+        print(
+            "python predict.py path/to/image.jpg"
+        )
+
+        sys.exit(1)
+
+    image_path = sys.argv[1]
+
     try:
-        analyze_file(test_file)
+
+        result = predict_image(
+            image_path
+        )
+
+        print()
+        print("=" * 50)
+        print("SKIN LESION ANALYSIS")
+        print("=" * 50)
+
+        print(
+            "Prediction:",
+            result["diagnosis"]
+        )
+
+        print(
+            "Meaning:",
+            result["description"]
+        )
+
+        print(
+            "Confidence:",
+            f"{result['confidence'] * 100:.2f}%"
+        )
+
+        print("=" * 50)
+
+        print()
+        print(
+            "This is a research/educational model "
+            "and is not a medical diagnosis."
+        )
+
     except Exception as e:
-        print(f"Verification failed: {e}")
+
+        print()
+        print(
+            "Prediction failed:"
+        )
+
+        print(e)

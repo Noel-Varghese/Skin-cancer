@@ -1,1 +1,74 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;700&display=swap');
 @import "tailwindcss";
+
+@theme {
+  --font-display: "Instrument Serif", Georgia, serif;
+  --font-sans: "Manrope", system-ui, sans-serif;
+  --color-navy: #0e1a2b;
+  --color-deep: #091220;
+  --color-skin: #f0c7a4;
+  --color-beam: #7fe0d0;
+  --color-alert: #ff7070;
+  --color-safe: #6ee7b7;
+}
+
+:root { color-scheme: dark; }
+html, body, #root { min-height: 100%; }
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  color: #e8eef7;
+  background: radial-gradient(1200px 700px at 75% 20%, #17304d 0%, var(--color-navy) 45%, var(--color-deep) 100%) fixed;
+}
+
+/* entrance: one orchestrated page-load sequence */
+.rise { animation: rise .9s cubic-bezier(.2,.7,.2,1) both; animation-delay: var(--d, 0s); }
+.fade { animation: fade .5s ease both; }
+@keyframes rise { from { opacity: 0; transform: translateY(22px); } }
+@keyframes fade { from { opacity: 0; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes float { 50% { transform: translateY(-8px); } }
+@keyframes sweep { from { top: -36%; } to { top: 100%; } }
+@keyframes blink { 50% { opacity: .35; } }
+
+/* ---- dermoscope lens ---- */
+.lens { position: relative; width: min(78vw, 400px); aspect-ratio: 1; margin: auto; }
+.ring { position: absolute; inset: 0; border-radius: 50%; border: 1px dashed rgba(127,224,208,.4); animation: spin 36s linear infinite; }
+.ring.b { inset: -7%; border: 1px solid rgba(127,224,208,.16); animation-duration: 60s; animation-direction: reverse; }
+.ring.c { inset: 6%; border: 2px solid rgba(240,199,164,.18); animation: none; }
+.skin {
+  position: absolute; inset: 12%; border-radius: 50%; overflow: hidden;
+  background: radial-gradient(circle at 34% 28%, #f6d3b4, #d29a72 55%, #85523a);
+  box-shadow: 0 0 90px rgba(127,224,208,.22), inset 0 0 44px rgba(40,18,8,.5);
+  animation: float 7s ease-in-out infinite;
+}
+.mole {
+  position: absolute; left: 37%; top: 38%; width: 28%; height: 24%;
+  background: radial-gradient(circle at 40% 38%, #4a2a17, #1d0f07);
+  border-radius: 58% 42% 52% 48% / 46% 56% 44% 54%;
+  box-shadow: 0 0 16px rgba(30,14,5,.55);
+}
+.beam {
+  position: absolute; left: 0; right: 0; height: 36%; top: -36%;
+  background: linear-gradient(to bottom, transparent, rgba(127,224,208,.32));
+  border-bottom: 2px solid var(--color-beam);
+  box-shadow: 0 8px 26px rgba(127,224,208,.65);
+  animation: sweep 3.2s linear infinite;
+}
+.tag { position: absolute; font-size: 12px; color: #b9c8dc; display: flex; align-items: center; gap: 8px; animation: blink 4s ease-in-out infinite; animation-delay: var(--d); }
+.tag::before { content: ""; width: 22px; height: 1px; background: var(--color-beam); }
+.tag.r { flex-direction: row-reverse; }
+
+/* ---- surfaces ---- */
+.glass { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1); border-radius: 20px; backdrop-filter: blur(14px); }
+.cta {
+  background: var(--color-skin); color: #2a1608; font-weight: 700; border-radius: 999px;
+  padding: 14px 30px; transition: transform .2s, box-shadow .2s; box-shadow: 0 10px 40px -10px rgba(240,199,164,.55);
+}
+.cta:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 16px 44px -8px rgba(240,199,164,.7); }
+.cta:disabled { opacity: .4; cursor: not-allowed; }
+.cta:focus-visible, button:focus-visible, label:focus-within { outline: 2px solid var(--color-beam); outline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

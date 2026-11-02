@@ -5,4 +5,3 @@ pandas
 Pillow
 opencv-python
 
-pip install -r req.txt
