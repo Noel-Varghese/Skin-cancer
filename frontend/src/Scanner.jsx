@@ -43,9 +43,16 @@ function Ring({ value, danger }) {
 }
 
 function Verdict({ result }) {
-  const danger = result.diagnosis.includes('DANGER')
   const label = result.diagnosis.replace(' (DANGER)', '')
+
+  const danger = [
+    'Basal Cell Carcinoma',
+    'Melanoma',
+    'Squamous Cell Carcinoma',
+  ].includes(label)
+
   const precancer = label.includes('Actinic')
+
   const advice = danger
     ? 'This pattern resembles a cancerous lesion type. Please see a dermatologist soon.'
     : precancer
@@ -54,14 +61,36 @@ function Verdict({ result }) {
 
   return (
     <div className="fade">
-      <p className="text-sm text-slate-400">Closest match</p>
-      <h2 className={`font-display mt-1 text-4xl leading-tight ${danger ? 'text-alert' : 'text-safe'}`}>{label}</h2>
+      <p className="text-sm text-slate-400">
+        Closest match
+      </p>
+
+      <h2
+        className={`font-display mt-1 text-4xl leading-tight ${
+          danger ? 'text-alert' : 'text-safe'
+        }`}
+      >
+        {label}
+      </h2>
+
+      {/* Plain-English meaning */}
+      <p className="mt-2 text-base text-slate-300">
+        {result.description}
+      </p>
+
       <div className="mt-6 flex items-center gap-6">
-        <Ring value={result.confidence} danger={danger} />
+        <Ring
+          value={result.confidence * 100}
+          danger={danger}
+        />
+
         <p className="text-sm leading-relaxed text-slate-300">
           {advice}
-          {result.confidence < 60 && (
-            <span className="mt-2 block text-slate-400">The model is unsure here, so treat this result with extra caution.</span>
+
+          {result.confidence < 0.60 && (
+            <span className="mt-2 block text-slate-400">
+              The model is unsure here, so treat this result with extra caution.
+            </span>
           )}
         </p>
       </div>
